@@ -1,308 +1,174 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Pixel-match Image Generator (img1 -> img2)</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Roboto, "Segoe UI", Arial; margin: 18px; color:#111; }
-    h1 { margin-top: 0; }
-    .row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
-    canvas { border:1px solid #ddd; image-rendering: pixelated; max-width: 100%; }
-    .controls { margin-bottom:10px; }
-    button { padding:8px 12px; font-size:14px; }
-    label { font-size:14px; margin-right:8px; }
-    input[type="number"] { width:72px; }
-    .progress { margin-top:8px; font-size:13px; color:#333; }
-    .warning { color: #9a3b00; font-weight:600; }
-    .small { font-size:13px; color:#555; }
-  </style>
+<meta charset="UTF-8">
+<title>Pixel-match Image Generator (Stack-Safe)</title>
+<style>
+body { font-family: sans-serif; margin: 16px; }
+canvas { border: 1px solid #ccc; margin: 8px; image-rendering: pixelated; }
+.progress { margin: 8px 0; font-size: 14px; }
+.controls { margin-bottom: 12px; }
+</style>
 </head>
 <body>
-  <h1>Pixel-match Image Generator (Client-side)</h1>
-  <div class="row">
-    <div>
-      <label>Image 1 (source colors):</label><input id="file1" type="file" accept="image/*" />
-      <div class="small">Image 1 supplies colors to be rearranged.</div>
-    </div>
-    <div>
-      <label>Image 2 (target layout):</label><input id="file2" type="file" accept="image/*" />
-      <div class="small">Image 2 defines layout we want to approximate using Image 1's colors.</div>
-    </div>
-  </div>
+<h1>Pixel-match Image Generator (Stack-Safe)</h1>
 
-  <div class="controls">
-    <label>Downscale factor:</label>
-    <input id="downscale" type="number" min="1" value="4" /> <span class="small"> (1 = original size, higher → faster / lower quality)</span>
-    &nbsp;&nbsp;
-    <label>k (neighbors to try):</label>
-    <input id="k" type="number" min="1" value="8" />
-    &nbsp;&nbsp;
-    <button id="run">Run Match</button>
-    <button id="download" disabled>Download Result</button>
-  </div>
+<div class="controls">
+  <label>Image 1 (source colors): <input type="file" id="file1" accept="image/*"></label>
+  <label>Image 2 (target layout): <input type="file" id="file2" accept="image/*"></label>
+  <br>
+  <label>Downscale: <input type="number" id="downscale" value="4" min="1"></label>
+  <button id="run">Run Match</button>
+  <button id="download" disabled>Download Result</button>
+</div>
 
-  <div class="progress" id="progress">Waiting for input...</div>
+<div class="progress" id="progress">Waiting for input...</div>
 
-  <div style="display:flex; gap:16px; margin-top:12px;">
-    <div>
-      <div><b>Image 1 (resized)</b></div>
-      <canvas id="canvas1" width="0" height="0"></canvas>
-    </div>
-    <div>
-      <div><b>Image 2 (resized)</b></div>
-      <canvas id="canvas2" width="0" height="0"></canvas>
-    </div>
-    <div>
-      <div><b>Result</b></div>
-      <canvas id="canvasOut" width="0" height="0"></canvas>
-    </div>
+<div style="display:flex; gap:16px;">
+  <div>
+    <div><b>Image 1 (resized)</b></div>
+    <canvas id="canvas1"></canvas>
   </div>
+  <div>
+    <div><b>Image 2 (resized)</b></div>
+    <canvas id="canvas2"></canvas>
+  </div>
+  <div>
+    <div><b>Result</b></div>
+    <canvas id="canvasOut"></canvas>
+  </div>
+</div>
 
 <script>
-/*
-KD-tree adapted for 3D color points.
-Simple implementation with k-nearest search (recursive). Meant for moderate N (thousands -> tens of thousands).
-We don't support removing nodes from the tree; instead we keep a separate 'used' boolean array.
-*/
-class KDNode {
-  constructor(point, index, axis, left=null, right=null) {
-    this.point = point;   // [r,g,b]
-    this.index = index;   // original index in array
-    this.axis = axis;     // 0,1,2
-    this.left = left;
-    this.right = right;
-  }
-}
-
-function buildKD(points, indices, depth=0) {
-  if (points.length === 0) return null;
-  const axis = depth % 3;
-  const sortedIdx = indices.slice().sort((a,b) => points[a][axis] - points[b][axis]);
-  const median = Math.floor(sortedIdx.length / 2);
-  const medianIndex = sortedIdx[median];
-  const leftIndices = sortedIdx.slice(0, median);
-  const rightIndices = sortedIdx.slice(median+1);
-  const node = new KDNode(points[medianIndex], medianIndex, axis,
-    buildKD(points, leftIndices, depth + 1),
-    buildKD(points, rightIndices, depth + 1));
-  return node;
-}
-
-// kNN search -> returns array of {index, dist2} sorted ascending
-function knnSearch(node, target, k) {
-  const heap = []; // max-heap emulate with array storing {index, dist2}
-  function pushCandidate(obj) {
-    heap.push(obj);
-    heap.sort((a,b) => b.dist2 - a.dist2); // keep largest-first for small k
-    if (heap.length > k) heap.shift(); // remove largest if >k
-  }
-  function search(n) {
-    if (!n) return;
-    const axis = n.axis;
-    const d = target[axis] - n.point[axis];
-    const dist2 = (target[0]-n.point[0])**2 + (target[1]-n.point[1])**2 + (target[2]-n.point[2])**2;
-    pushCandidate({index: n.index, dist2});
-    const primary = (d <= 0) ? n.left : n.right;
-    const secondary = (d <= 0) ? n.right : n.left;
-    if (primary) search(primary);
-    const worstDist2 = heap.length < k ? Infinity : heap[0].dist2;
-    if (secondary && d*d < worstDist2) search(secondary);
-  }
-  search(node);
-  // return sorted ascending by dist2
-  return heap.slice().sort((a,b) => a.dist2 - b.dist2);
-}
-
-/* Utilities for image / canvas handling */
-function drawImageToCanvas(img, canvas, maxW, maxH) {
-  const ctx = canvas.getContext('2d');
-  // scale to fit maxW/maxH while keeping aspect ratio
-  let w = img.width, h = img.height;
-  if (maxW && w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
-  if (maxH && h > maxH) { w = Math.round(w * (maxH / h)); h = maxH; }
-  canvas.width = w; canvas.height = h;
-  ctx.clearRect(0,0,w,h);
-  ctx.drawImage(img, 0,0, w,h);
-}
-
-function getImageDataFromCanvas(canvas) {
-  return canvas.getContext('2d').getImageData(0,0, canvas.width, canvas.height);
-}
-
-function imageFileToImageElement(file) {
+async function loadImage(file) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
-    img.src = url;
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
   });
 }
 
-/* Main matching logic (web version) */
-async function runMatching(file1, file2, downscaleFactor=4, kNeighbors=8, progressCb=null) {
-  // Load images as elements
-  const img1 = await imageFileToImageElement(file1);
-  const img2 = await imageFileToImageElement(file2);
-
-  // Downscale target dimensions
-  const targetW = Math.max(1, Math.floor(img1.width / downscaleFactor));
-  const targetH = Math.max(1, Math.floor(img1.height / downscaleFactor));
-  // We'll resize both to the same size (img1's aspect ratio)
-  const canvas1 = document.createElement('canvas');
-  const canvas2 = document.createElement('canvas');
-  drawImageToCanvas(img1, canvas1, targetW, targetH);
-  drawImageToCanvas(img2, canvas2, targetW, targetH);
-
-  // Extract pixel arrays (Uint8ClampedArray)
-  const data1 = getImageDataFromCanvas(canvas1).data;
-  const data2 = getImageDataFromCanvas(canvas2).data;
-  const W = canvas1.width, H = canvas1.height;
-  const N = W * H;
-  if (progressCb) progressCb(`Resized to ${W}×${H} → ${N} pixels`);
-
-  // Build float32 RGB arrays (as plain arrays to work with KD-tree)
-  const points1 = new Array(N);
-  const points2 = new Array(N);
-  for (let i=0;i<N;i++){
-    const di = i*4;
-    points1[i] = [data1[di], data1[di+1], data1[di+2]];
-    points2[i] = [data2[di], data2[di+1], data2[di+2]];
-  }
-
-  if (progressCb) progressCb('Building KD-tree for image 2...');
-  // Build KD-tree over points2 indices
-  const allIndices = [...Array(N).keys()];
-  const kdRoot = buildKD(points2, allIndices);
-
-  // used mask for img2 pixels
-  const used = new Uint8Array(N); // 0 = available, 1 = used
-  const mapping = new Int32Array(N); // mapping[i] = matched img2 index for img1[i]
-
-  // For each pixel in img1 find k nearest, pick first unused, else pick random remaining
-  let remainingCount = N;
-  const rand = (arr) => arr[Math.floor(Math.random()*arr.length)];
-
-  for (let i=0;i<N;i++){
-    // query k nearest (kNeighbors)
-    const knn = knnSearch(kdRoot, points1[i], kNeighbors);
-    let found = -1;
-    for (let t=0;t<knn.length;t++){
-      const idx = knn[t].index;
-      if (!used[idx]) { found = idx; break; }
-    }
-    if (found === -1) {
-      // fallback: sample a few random indices until we find an unused one (safe)
-      // If remainingCount small, build list
-      if (remainingCount < 2000) {
-        const rem = [];
-        for (let j=0;j<N;j++) if (!used[j]) rem.push(j);
-        found = rem.length > 0 ? rem[Math.floor(Math.random()*rem.length)] : 0;
-      } else {
-        // try random attempts
-        let attempts = 0;
-        while (attempts < 50) {
-          const r = Math.floor(Math.random()*N);
-          if (!used[r]) { found = r; break; }
-          attempts++;
-        }
-        if (found === -1) {
-          // final fallback: linear scan (rare)
-          for (let j=0;j<N;j++) if (!used[j]) { found = j; break; }
-        }
-      }
-    }
-    mapping[i] = found;
-    used[found] = 1;
-    remainingCount--;
-
-    // progress update
-    if ((i+1) % Math.max(1, Math.floor(N/100)) === 0) {
-      if (progressCb) progressCb(`Matched ${i+1}/${N} pixels... remaining ${remainingCount}`);
-      await new Promise(r => setTimeout(r, 0)); // yield to UI for responsiveness
-    }
-  }
-
-  // Build output image: place colors from img1 arranged by mapping -> we want recreated image shaped like img2 (W,H)
-  // In Python version earlier we used arr1[mapping] but here mapping maps i in img1 -> index in img2.
-  // To reconstruct img2-like image by coloring each pixel in img2 with the color of its assigned img1 pixel,
-  // we need to invert mapping: which pixel in img1 matched pixel j in img2?
-  const inv = new Int32Array(N).fill(-1);
-  for (let i=0;i<N;i++){
-    const j = mapping[i];
-    inv[j] = i;
-  }
-  // For any unassigned (shouldn't happen), fill with a random color from img1
-  for (let j=0;j<N;j++){
-    if (inv[j] === -1) {
-      inv[j] = Math.floor(Math.random()*N);
-    }
-  }
-
-  // Create output ImageData and put pixels (color from img1[inv[j]])
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = W; outCanvas.height = H;
-  const outCtx = outCanvas.getContext('2d');
-  const outImg = outCtx.createImageData(W,H);
-  for (let j=0;j<N;j++){
-    const di = j*4;
-    const srcIdx = inv[j];
-    const sdi = srcIdx*4;
-    outImg.data[di]   = data1[sdi];
-    outImg.data[di+1] = data1[sdi+1];
-    outImg.data[di+2] = data1[sdi+2];
-    outImg.data[di+3] = 255;
-  }
-  outCtx.putImageData(outImg, 0,0);
-
-  // Return canvases & metadata
-  return {
-    canvas1, canvas2, outCanvas,
-    width: W, height: H, N
-  };
+function drawToCanvas(img, canvas, maxW, maxH) {
+  let w = img.width;
+  let h = img.height;
+  if (maxW && w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
+  if (maxH && h > maxH) { w = Math.round(w * (maxH / h)); h = maxH; }
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
 }
 
-/* DOM wiring */
-document.getElementById('run').addEventListener('click', async () => {
+function flattenPixels(imageData) {
+  const arr = [];
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    arr.push([imageData.data[i], imageData.data[i+1], imageData.data[i+2]]);
+  }
+  return arr;
+}
+
+function createOutputImage(flatPixels, width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.createImageData(width, height);
+  for (let i = 0; i < flatPixels.length; i++) {
+    const di = i*4;
+    const pix = flatPixels[i];
+    imageData.data[di] = pix[0];
+    imageData.data[di+1] = pix[1];
+    imageData.data[di+2] = pix[2];
+    imageData.data[di+3] = 255;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+function distanceSquared(a,b) {
+  return (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2;
+}
+
+async function runMatch(file1, file2, downscale, progressCb) {
+  const img1 = await loadImage(file1);
+  const img2 = await loadImage(file2);
+
+  const targetW = Math.max(1, Math.floor(img1.width / downscale));
+  const targetH = Math.max(1, Math.floor(img1.height / downscale));
+
+  const canvas1 = document.getElementById('canvas1');
+  const canvas2 = document.getElementById('canvas2');
+
+  const data1 = drawToCanvas(img1, canvas1, targetW, targetH);
+  const data2 = drawToCanvas(img2, canvas2, targetW, targetH);
+
+  const flat1 = flattenPixels(data1);
+  const flat2 = flattenPixels(data2);
+
+  const N = flat1.length;
+  const used = new Uint8Array(flat2.length);
+  const mapping = new Array(N);
+
+  for (let i=0;i<N;i++) {
+    let bestDist = Infinity;
+    let bestIdx = -1;
+    for (let j=0;j<flat2.length;j++) {
+      if (used[j]) continue;
+      const d = distanceSquared(flat1[i], flat2[j]);
+      if (d < bestDist) { bestDist = d; bestIdx = j; }
+    }
+    mapping[i] = bestIdx;
+    used[bestIdx] = 1;
+    if (i % Math.max(1,Math.floor(N/100)) === 0) {
+      if (progressCb) progressCb(`Matched ${i+1}/${N} pixels`);
+      await new Promise(r=>setTimeout(r,0)); // yield UI
+    }
+  }
+
+  const inv = new Array(flat2.length).fill(-1);
+  for (let i=0;i<N;i++){
+    inv[mapping[i]] = i;
+  }
+  for (let j=0;j<flat2.length;j++){
+    if (inv[j] === -1) inv[j] = Math.floor(Math.random()*N);
+  }
+
+  const outputPixels = new Array(flat2.length);
+  for (let j=0;j<flat2.length;j++){
+    outputPixels[j] = flat1[inv[j]];
+  }
+
+  const outCanvas = createOutputImage(outputPixels, targetW, targetH);
+  return {canvas1, canvas2, outCanvas, width: targetW, height: targetH};
+}
+
+document.getElementById('run').addEventListener('click', async ()=>{
   const f1 = document.getElementById('file1').files[0];
   const f2 = document.getElementById('file2').files[0];
-  if (!f1 || !f2) {
-    alert('Please select both Image 1 and Image 2 files.');
-    return;
-  }
-  const down = Math.max(1, parseInt(document.getElementById('downscale').value) || 1);
-  const k = Math.max(1, parseInt(document.getElementById('k').value) || 8);
+  if (!f1 || !f2) return alert("Select both images");
+
+  const down = Math.max(1, parseInt(document.getElementById('downscale').value) || 4);
   const progressEl = document.getElementById('progress');
-  progressEl.textContent = 'Starting... (this runs locally in your browser)';
+  progressEl.textContent = 'Starting...';
 
   try {
-    const result = await runMatching(f1, f2, down, k, (msg) => { progressEl.textContent = msg; });
-    // Put canvases into DOM
-    const canvas1 = document.getElementById('canvas1');
-    const canvas2 = document.getElementById('canvas2');
-    const canvasOut = document.getElementById('canvasOut');
-
-    // Resize visible canvases to the generated sizes (for pixelated look keep CSS scaling)
-    [canvas1, canvas2, canvasOut].forEach(c => { c.width = result.width; c.height = result.height; });
-
-    // draw
-    const ctx1 = canvas1.getContext('2d'); ctx1.drawImage(result.canvas1, 0,0);
-    const ctx2 = canvas2.getContext('2d'); ctx2.drawImage(result.canvas2, 0,0);
-    const ctxOut = canvasOut.getContext('2d'); ctxOut.drawImage(result.outCanvas, 0,0);
-
-    progressEl.textContent = `Done! Output is ${result.width}×${result.height}.`;
+    const result = await runMatch(f1,f2,down,(msg)=>{progressEl.textContent = msg;});
+    document.getElementById('canvas1').getContext('2d').drawImage(result.canvas1,0,0);
+    document.getElementById('canvas2').getContext('2d').drawImage(result.canvas2,0,0);
+    document.getElementById('canvasOut').getContext('2d').drawImage(result.outCanvas,0,0);
+    progressEl.textContent = `Done! Output ${result.width}x${result.height}`;
     const dlBtn = document.getElementById('download');
     dlBtn.disabled = false;
-    dlBtn.onclick = () => {
+    dlBtn.onclick = ()=>{
       const a = document.createElement('a');
-      a.href = canvasOut.toDataURL('image/png');
+      a.href = result.outCanvas.toDataURL('image/png');
       a.download = 'recreated.png';
       a.click();
     };
-  } catch (err) {
-    console.error(err);
-    document.getElementById('progress').textContent = 'Error: ' + err.message;
-    alert('Error: ' + err.message + '\nCheck console for details.');
+  } catch(e) {
+    console.error(e);
+    progressEl.textContent = 'Error: '+e.message;
   }
 });
 </script>
