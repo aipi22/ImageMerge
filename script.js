@@ -1,0 +1,148 @@
+async function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// Ensures display and internal size match
+function syncCanvasSize(canvas, w, h) {
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+}
+
+function drawToCanvas(img, canvas, maxW, maxH) {
+  let w = img.width;
+  let h = img.height;
+
+  if (maxW && w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
+  if (maxH && h > maxH) { w = Math.round(w * (maxH / h)); h = maxH; }
+
+  syncCanvasSize(canvas, w, h);
+
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+}
+
+function flattenPixels(imageData) {
+  const arr = [];
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    arr.push([imageData.data[i], imageData.data[i+1], imageData.data[i+2]]);
+  }
+  return arr;
+}
+
+function createOutputImage(flatPixels, width, height) {
+  const canvas = document.createElement('canvas');
+  syncCanvasSize(canvas, width, height);
+
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.createImageData(width, height);
+  for (let i = 0; i < flatPixels.length; i++) {
+    const di = i * 4;
+    const pix = flatPixels[i];
+    imageData.data[di] = pix[0];
+    imageData.data[di+1] = pix[1];
+    imageData.data[di+2] = pix[2];
+    imageData.data[di+3] = 255;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+function distanceSquared(a, b) {
+  return (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2;
+}
+
+async function runMatch(file1, file2, downscale, progressCb) {
+  const img1 = await loadImage(file1);
+  const img2 = await loadImage(file2);
+
+  // Match both images' downscaled sizes to each other
+  const targetW = Math.max(1, Math.floor(img2.width / downscale));
+  const targetH = Math.max(1, Math.floor(img2.height / downscale));
+
+  const canvas1 = document.getElementById('canvas1');
+  const canvas2 = document.getElementById('canvas2');
+
+  const data1 = drawToCanvas(img1, canvas1, targetW, targetH);
+  const data2 = drawToCanvas(img2, canvas2, targetW, targetH);
+
+  const flat1 = flattenPixels(data1);
+  const flat2 = flattenPixels(data2);
+
+  const N = flat1.length;
+  const used = new Uint8Array(flat2.length);
+  const mapping = new Array(N);
+
+  for (let i = 0; i < N; i++) {
+    let bestDist = Infinity;
+    let bestIdx = -1;
+    for (let j = 0; j < flat2.length; j++) {
+      if (used[j]) continue;
+      const d = distanceSquared(flat1[i], flat2[j]);
+      if (d < bestDist) { bestDist = d; bestIdx = j; }
+    }
+    mapping[i] = bestIdx;
+    used[bestIdx] = 1;
+    if (i % Math.max(1, Math.floor(N/100)) === 0) {
+      if (progressCb) progressCb(`Matched ${i+1}/${N} pixels`);
+      await new Promise(r => setTimeout(r, 0)); // yield UI
+    }
+  }
+
+  const inv = new Array(flat2.length).fill(-1);
+  for (let i = 0; i < N; i++) inv[mapping[i]] = i;
+  for (let j = 0; j < flat2.length; j++)
+    if (inv[j] === -1) inv[j] = Math.floor(Math.random() * N);
+
+  const outputPixels = new Array(flat2.length);
+  for (let j = 0; j < flat2.length; j++)
+    outputPixels[j] = flat1[inv[j]];
+
+  const outCanvas = createOutputImage(outputPixels, canvas2.width, canvas2.height);
+  return { canvas1, canvas2, outCanvas, width: canvas2.width, height: canvas2.height };
+}
+
+document.getElementById('run').addEventListener('click', async () => {
+  const f1 = document.getElementById('file1').files[0];
+  const f2 = document.getElementById('file2').files[0];
+  if (!f1 || !f2) return alert("Select both images");
+
+  const down = Math.max(1, parseInt(document.getElementById('downscale').value) || 4);
+  const progressEl = document.getElementById('progress');
+  progressEl.textContent = 'Starting...';
+
+  try {
+    const result = await runMatch(f1, f2, down, msg => progressEl.textContent = msg);
+    const ctx1 = document.getElementById('canvas1').getContext('2d');
+    const ctx2 = document.getElementById('canvas2').getContext('2d');
+    const ctxOut = document.getElementById('canvasOut').getContext('2d');
+
+    // Ensure canvases match output resolution
+    syncCanvasSize(document.getElementById('canvasOut'), result.width, result.height);
+
+    ctx1.drawImage(result.canvas1, 0, 0);
+    ctx2.drawImage(result.canvas2, 0, 0);
+    ctxOut.drawImage(result.outCanvas, 0, 0);
+
+    progressEl.textContent = `Done! Output ${result.width}x${result.height}`;
+
+    const dlBtn = document.getElementById('download');
+    dlBtn.disabled = false;
+    dlBtn.onclick = () => {
+      const a = document.createElement('a');
+      a.href = result.outCanvas.toDataURL('image/png');
+      a.download = 'recreated.png';
+      a.click();
+    };
+  } catch (e) {
+    console.error(e);
+    progressEl.textContent = 'Error: ' + e.message;
+  }
+});
