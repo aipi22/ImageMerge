@@ -1,9 +1,16 @@
 body {
-  background-color: black;
+        background-color: rgb(9, 9, 46);
+        color: white;
 }
 
 h1 {
-  text-align: center;
-  font-size: 64px;
-  color: gray;
+    text-align: center;
+    font-size: 64px;
+}
+
+#heading {
+    width: 2000px;
+    height: 200px;
+    background-color: rgb(103, 152, 230);
+    border-radius: 15px;
 }
