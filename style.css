@@ -1,4 +1,9 @@
-body { font-family: sans-serif; margin: 16px; }
-canvas { border: 1px solid #ccc; margin: 8px; image-rendering: pixelated; }
-.progress { margin: 8px 0; font-size: 14px; }
-.controls { margin-bottom: 12px; }
+body {
+  background-color: black;
+}
+
+h1 {
+  text-align: center;
+  font-size: 64px;
+  color: gray;
+}
