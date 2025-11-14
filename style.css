@@ -1,16 +1,35 @@
 body {
-        background-color: rgb(9, 9, 46);
-        color: white;
-}
-
-h1 {
+    background-color: rgb(10, 10, 10);
+    color: white;
+    font-family: system-ui, sans-serif;
     text-align: center;
-    font-size: 64px;
 }
-
-#heading {
-    width: 2000px;
-    height: 200px;
-    background-color: rgb(103, 152, 230);
-    border-radius: 15px;
+.rounded-box {
+    background-color: rgb(30, 30, 30);
+    border-radius: 20px;
+    padding: 20px;
+    margin: 20px auto;
+    width: 90%;
+    max-width: 900px;
+    box-shadow: 0 0 15px rgba(255,255,255,0.1);
+}
+canvas {
+    margin: 10px;
+    border-radius: 12px;
+    background-color: black;
+}
+input, button, label {
+    margin: 5px;
+    font-size: 1rem;
+}
+button {
+    border: none;
+    background-color: rgb(60, 60, 255);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+button:hover {
+    background-color: rgb(80, 80, 255);
 }
