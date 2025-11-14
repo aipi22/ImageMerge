@@ -3,8 +3,8 @@ body {
     color: white;
     font-family: system-ui, sans-serif;
     text-align: center;
-  }
-  .rounded-box {
+}
+.rounded-box {
     background-color: rgb(30, 30, 30);
     border-radius: 20px;
     border-style: solid;
@@ -15,31 +15,30 @@ body {
     width: 90%;
     max-width: 900px;
     box-shadow: 0 0 15px rgba(255,255,255,0.1);
-  }
-  canvas {
+}
+canvas {
     margin: 10px;
     border-radius: 12px;
     background-color: black;
-  }
-  input, button, label {
+}
+input, button, label {
     margin: 5px;
     font-size: 1rem;
-  }
-  button {
+}
+button {
     border: none;
     background-color: #00a118;
     color: white;
     padding: 10px 20px;
     border-radius: 10px;
     cursor: pointer;
-  }
-  button:hover {
+}
+button:hover {
     background-color: rgb(80, 80, 255);
-  }
-  input[type="file"] {
+}
+input[type="file"] {
   display: none;
 }
-
 .file {
   display: inline-block;
   padding: 12px 20px;
@@ -51,7 +50,6 @@ body {
   font-size: 1rem;
   transition: 0.2s;
 }
-
 .file:hover {
   background: rgb(80, 80, 255);
 }
