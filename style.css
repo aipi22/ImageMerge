@@ -36,9 +36,11 @@ button {
 button:hover {
     background-color: rgb(80, 80, 255);
 }
+/*
 input[type="file"] {
   display: none;
 }
+*/
 .file {
   display: inline-block;
   padding: 12px 20px;
