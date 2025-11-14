@@ -2,36 +2,42 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Pixel-match Image Generator (Stack-Safe, Display-Fixed)</title>
-<link rel="stylesheet" href="style.css">
+<title>Pixel Match Visualizer</title>
 </head>
 <body>
-<div id="heading">
-  <h1>Pixel Matcher</h1>
-</div>
-<div class="controls">
-  <label>Image 1 (source colors): <input type="file" id="file1" accept="image/*"></label>
-  <label>Image 2 (target layout): <input type="file" id="file2" accept="image/*"></label>
-  <br>
-  <label>Downscale: <input type="number" id="downscale" value="4" min="1"></label>
-  <button id="run">Run Match</button>
-  <button id="download" disabled>Download Result</button>
-</div>
-<div class="progress" id="progress">Waiting for input...</div>
-<div style="display:flex; gap:16px;">
-  <div>
-    <div><b>Image 1 (resized)</b></div>
+  <div class="rounded-box">
+    <h2>🎨 Pixel Match Visualizer</h2>
+
+    <div>
+      <input type="file" id="file1" accept="image/*">
+      <input type="file" id="file2" accept="image/*"><br>
+    </div>
+
+    <label>Downscale:
+      <input type="number" id="downscale" value="4" min="1" max="50">
+    </label>
+
+    <label>
+      <input type="checkbox" id="showAnim">
+      Show animation
+    </label>
+
+    <label>
+      Animation resolution:
+      <input type="number" id="animRes" value="32" min="8" max="128" step="8">
+    </label>
+
+    <button id="run">Run</button>
+    <button id="download" disabled>Download Result</button>
+
+    <p id="progress">Status: Waiting for input...</p>
+  </div>
+
+  <div class="rounded-box">
     <canvas id="canvas1"></canvas>
-  </div>
-  <div>
-    <div><b>Image 2 (resized)</b></div>
     <canvas id="canvas2"></canvas>
-  </div>
-  <div>
-    <div><b>Result</b></div>
+    <br>
     <canvas id="canvasOut"></canvas>
   </div>
-</div>
 </body>
-<script src="script.js"></script>
 </html>
