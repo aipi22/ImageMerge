@@ -1,41 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Pixel Match Visualizer</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>Pixel Match Visualizer</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="rounded-box">
-    <h1>Image Merge</h1>
-    <h2>By aipi22</h2>
-    <!--<label class="file" for="file1">Select Image 1</label>-->
-    <input type="file" id="file1" accept="image/*">
-    <!--<label class="file" for="file2">Select Image 2</label>-->
-    <input type="file" id="file2" accept="image/*">
-    <br>
-    <label>Downscale:
-      <input type="number" id="downscale" value="4" min="1" max="50">
-    </label>
-    <label>
-      <input type="checkbox" id="showAnim">
-      Show animation
-    </label>
-    <label>
-      Animation resolution:
-      <input type="number" id="animRes" value="32" min="8" max="128" step="8">
-    </label>
-    <br>
-    <button id="run">Run</button>
-    <button id="download" disabled>Download Result</button>
-    <p id="progress">Status: Waiting for input...</p>
-  </div>
-  <div class="rounded-box">
-    <canvas id="canvas1"></canvas>
-    <canvas id="canvas2"></canvas>
-    <br>
-    <canvas id="canvasOut"></canvas>
-  </div>
-  <script src="script.js"></script>
+<div class="rounded-box">
+  <h1>Image Merge</h1>
+  <h2>By aipi22</h2>
+  <label class="file" for="file1">Select Image 1</label>
+  <input type="file" id="file1" accept="image/*">
+  <label class="file" for="file2">Select Image 2</label>
+  <input type="file" id="file2" accept="image/*">
+  <br>
+  <label>Downscale:
+    <input type="number" id="downscale" value="4" min="1" max="50">
+  </label>
+  <label>
+    <input type="checkbox" id="showAnim">
+    Show animation
+  </label>
+  <label>
+    Animation resolution:
+    <input type="number" id="animRes" value="32" min="8" max="128" step="8">
+  </label>
+  <br>
+  <button id="run">Run</button>
+  <button id="download" disabled>Download Result</button>
+  <p id="progress">Status: Waiting for input...</p>
+</div>
+<div class="rounded-box">
+  <canvas id="canvas1"></canvas>
+  <canvas id="canvas2"></canvas>
+  <br>
+  <canvas id="canvasOut"></canvas>
+</div>
 </body>
 </html>
