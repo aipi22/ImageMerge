@@ -1,10 +1,10 @@
-# ImageMerge Pro
+# ImageMerge v2
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Version](https://img.shields.io/badge/version-2.0.0-green.svg)
 ![Status](https://img.shields.io/badge/status-stable-success.svg)
 
-**ImageMerge Pro** is a high-performance web application that reconstructs images using the pixels of another image. It features a professional glassmorphic UI, interactive 3D background, and real-time audio feedback.
+**ImageMerge v2** is a high-performance web application that reconstructs images using the pixels of another image. It features a smooth user interface and a built-in image converter.
 
 ## ✨ Features
 
