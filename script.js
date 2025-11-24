@@ -11,15 +11,19 @@ async function loadImage(file) {
 function syncCanvasSize(canvas, w, h) {
   canvas.width = w;
   canvas.height = h;
-  canvas.style.width = w + "px";
-  canvas.style.height = h + "px";
+  canvas.style.width = "100%"; // CSS handles display size
+  canvas.style.height = "100%";
 }
 
 function drawToCanvas(img, canvas, maxW, maxH) {
   let w = img.width, h = img.height;
   if (maxW && w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
   if (maxH && h > maxH) { w = Math.round(w * (maxH / h)); h = maxH; }
-  syncCanvasSize(canvas, w, h);
+
+  // Set internal resolution
+  canvas.width = w;
+  canvas.height = h;
+
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, w, h);
   return ctx.getImageData(0, 0, w, h);
@@ -34,7 +38,8 @@ function flattenPixels(imageData) {
 
 function createOutputImage(flatPixels, width, height) {
   const canvas = document.createElement("canvas");
-  syncCanvasSize(canvas, width, height);
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
   const imgData = ctx.createImageData(width, height);
 
@@ -204,7 +209,16 @@ async function fadeToFull(outCanvas, lowFrame, fullCanvas, duration = 900) {
   });
 }
 
-// ---------------- handler ----------------
+// ---------------- UI Handlers ----------------
+
+// File Input Display
+document.getElementById('file1').addEventListener('change', function () {
+  if (this.files[0]) document.getElementById('btn-file1').textContent = this.files[0].name;
+});
+document.getElementById('file2').addEventListener('change', function () {
+  if (this.files[0]) document.getElementById('btn-file2').textContent = this.files[0].name;
+});
+
 document.getElementById('run').addEventListener('click', async () => {
   const f1 = document.getElementById('file1').files[0];
   const f2 = document.getElementById('file2').files[0];
@@ -225,7 +239,9 @@ document.getElementById('run').addEventListener('click', async () => {
     .drawImage(result.canvas2, 0, 0);
 
   const outCanvas = document.getElementById('canvasOut');
-  syncCanvasSize(outCanvas, result.width, result.height);
+  outCanvas.width = result.width;
+  outCanvas.height = result.height;
+  // CSS handles display size, but we need to set internal size
 
   if (showAnim) {
     progressEl.textContent = "Building animation…";
@@ -299,6 +315,7 @@ document.getElementById('run').addEventListener('click', async () => {
       0, 0, outCanvas.width, outCanvas.height);
 
   progressEl.textContent = `Done! Output ${result.width}×${result.height}`;
+  if (window.audioManager) window.audioManager.playSuccess();
 
   const dl = document.getElementById("download");
   dl.disabled = false;
