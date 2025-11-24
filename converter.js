@@ -89,6 +89,6 @@ document.getElementById('btn-convert').addEventListener('click', async () => {
 
     } catch (e) {
         console.error(e);
-        alert("Error converting image.");
+        alert("Error converting image. Double check you're using a .png, .jpg, or .webp file type.");
     }
 });
