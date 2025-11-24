@@ -28,7 +28,7 @@ function drawToCanvas(img, canvas, maxW, maxH) {
 function flattenPixels(imageData) {
   const arr = [];
   for (let i = 0; i < imageData.data.length; i += 4)
-    arr.push([imageData.data[i], imageData.data[i+1], imageData.data[i+2]]);
+    arr.push([imageData.data[i], imageData.data[i + 1], imageData.data[i + 2]]);
   return arr;
 }
 
@@ -42,19 +42,19 @@ function createOutputImage(flatPixels, width, height) {
     const di = i * 4;
     const p = flatPixels[i];
     imgData.data[di] = p[0];
-    imgData.data[di+1] = p[1];
-    imgData.data[di+2] = p[2];
-    imgData.data[di+3] = 255;
+    imgData.data[di + 1] = p[1];
+    imgData.data[di + 2] = p[2];
+    imgData.data[di + 3] = 255;
   }
 
   ctx.putImageData(imgData, 0, 0);
   return canvas;
 }
 
-function distanceSquared(a,b){return (a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;}
+function distanceSquared(a, b) { return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2; }
 
 // ---------------- main match ----------------
-async function runMatch(file1,file2,downscale,progressCb){
+async function runMatch(file1, file2, downscale, progressCb) {
   const img1 = await loadImage(file1);
   const img2 = await loadImage(file2);
 
@@ -71,23 +71,40 @@ async function runMatch(file1,file2,downscale,progressCb){
   const flat2 = flattenPixels(data2);
 
   const N = flat1.length;
-  const used = new Uint8Array(flat2.length);
   const mapping = new Array(N);
 
+  // Optimization: Use an array of available indices for O(1) removal
+  const unusedIndices = new Int32Array(flat2.length);
+  for (let k = 0; k < flat2.length; k++) unusedIndices[k] = k;
+  let unusedCount = flat2.length;
+
+  let lastYieldTime = performance.now();
+
   for (let i = 0; i < N; i++) {
-    let bestDist = Infinity, bestIdx = -1;
-    for (let j = 0; j < flat2.length; j++) {
-      if (used[j]) continue;
+    let bestDist = Infinity, bestIdxInUnused = -1;
+
+    // Search only through unused indices
+    for (let k = 0; k < unusedCount; k++) {
+      const j = unusedIndices[k];
       const d = distanceSquared(flat1[i], flat2[j]);
-      if (d < bestDist) { bestDist = d; bestIdx = j; }
+      if (d < bestDist) { bestDist = d; bestIdxInUnused = k; }
     }
 
-    mapping[i] = bestIdx;
-    used[bestIdx] = 1;
+    const bestRealIdx = unusedIndices[bestIdxInUnused];
+    mapping[i] = bestRealIdx;
 
-    if (i % Math.max(1, Math.floor(N / 100)) === 0) {
-      if (progressCb) progressCb(`Matched ${i+1}/${N} pixels`);
-      await new Promise(requestAnimationFrame); // ← FIX
+    // Remove used index by swapping with the last valid element
+    unusedCount--;
+    unusedIndices[bestIdxInUnused] = unusedIndices[unusedCount];
+
+    // Time-based yield to keep UI responsive without artificial delays
+    if ((i & 63) === 0) { // Check every 64 iterations
+      const now = performance.now();
+      if (now - lastYieldTime > 16) { // Yield if frame budget exceeded
+        if (progressCb) progressCb(`Matched ${i + 1}/${N} pixels`);
+        await new Promise(r => setTimeout(r, 0));
+        lastYieldTime = performance.now();
+      }
     }
   }
 
@@ -110,16 +127,17 @@ async function animateLowRes(outCanvas, flat1Low, mappingLow, animRes) {
   const ctx = outCanvas.getContext("2d");
   const W = outCanvas.width;
   const H = outCanvas.height;
-  const pxW = W / animRes;
-  const pxH = H / animRes;
+  // Fix: Use ceil to prevent sub-pixel gaps
+  const pxW = Math.ceil(W / animRes);
+  const pxH = Math.ceil(H / animRes);
 
   // draw starting frame
   for (let i = 0; i < flat1Low.length; i++) {
-    const x = (i % animRes) * pxW;
-    const y = Math.floor(i / animRes) * pxH;
+    const x = (i % animRes) * (W / animRes); // Keep precise float for position
+    const y = Math.floor(i / animRes) * (H / animRes);
     const c = flat1Low[i];
     ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
-    ctx.fillRect(x, y, pxW, pxH);
+    ctx.fillRect(Math.floor(x), Math.floor(y), pxW, pxH);
   }
 
   await new Promise(r => setTimeout(r, 800));
@@ -134,16 +152,19 @@ async function animateLowRes(outCanvas, flat1Low, mappingLow, animRes) {
       ctx.clearRect(0, 0, W, H);
 
       for (let i = 0; i < flat1Low.length; i++) {
-        const sx = (i % animRes) * pxW;
-        const sy = Math.floor(i / animRes) * pxH;
+        const sx = (i % animRes) * (W / animRes);
+        const sy = Math.floor(i / animRes) * (H / animRes);
         const di = mappingLow[i];
-        const dx = (di % animRes) * pxW;
-        const dy = Math.floor(di / animRes) * pxH;
+        const dx = (di % animRes) * (W / animRes);
+        const dy = Math.floor(di / animRes) * (H / animRes);
+
         const x = sx + (dx - sx) * t;
         const y = sy + (dy - sy) * t;
+
         const c = flat1Low[i];
         ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
-        ctx.fillRect(x, y, pxW, pxH);
+        // Fix: Use ceil and floor to ensure coverage
+        ctx.fillRect(Math.floor(x), Math.floor(y), pxW, pxH);
       }
 
       if (t < 1) requestAnimationFrame(frame);
@@ -155,7 +176,7 @@ async function animateLowRes(outCanvas, flat1Low, mappingLow, animRes) {
 }
 
 // ---------------- fade to full ----------------
-async function fadeToFull(outCanvas, lowFrame, fullCanvas, duration=900) {
+async function fadeToFull(outCanvas, lowFrame, fullCanvas, duration = 900) {
   const W = outCanvas.width;
   const H = outCanvas.height;
   const ctx = outCanvas.getContext("2d");
@@ -185,8 +206,8 @@ async function fadeToFull(outCanvas, lowFrame, fullCanvas, duration=900) {
 
 // ---------------- handler ----------------
 document.getElementById('run').addEventListener('click', async () => {
-  const f1=document.getElementById('file1').files[0];
-  const f2=document.getElementById('file2').files[0];
+  const f1 = document.getElementById('file1').files[0];
+  const f2 = document.getElementById('file2').files[0];
   if (!f1 || !f2) return alert("Select both images");
 
   const down = Math.max(1, parseInt(document.getElementById('downscale').value) || 4);
@@ -256,7 +277,7 @@ document.getElementById('run').addEventListener('click', async () => {
       const by = Math.floor(ay / blockH);
 
       mappingLow[bi] =
-        Math.max(0, Math.min(animRes*animRes-1, by*animRes + bx));
+        Math.max(0, Math.min(animRes * animRes - 1, by * animRes + bx));
     }
 
     progressEl.textContent = "Animating…";
@@ -275,7 +296,7 @@ document.getElementById('run').addEventListener('click', async () => {
 
   outCanvas.getContext("2d")
     .drawImage(result.outCanvas, 0, 0, result.width, result.height,
-               0, 0, outCanvas.width, outCanvas.height);
+      0, 0, outCanvas.width, outCanvas.height);
 
   progressEl.textContent = `Done! Output ${result.width}×${result.height}`;
 
