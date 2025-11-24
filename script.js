@@ -1,19 +1,6 @@
 // ---------------- helpers ----------------
-async function loadImage(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
-  });
-}
+// loadImage and syncCanvasSize are now in utils.js
 
-function syncCanvasSize(canvas, w, h) {
-  canvas.width = w;
-  canvas.height = h;
-  canvas.style.width = "100%"; // CSS handles display size
-  canvas.style.height = "100%";
-}
 
 function drawToCanvas(img, canvas, maxW, maxH) {
   let w = img.width, h = img.height;
