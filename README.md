@@ -10,9 +10,6 @@
 
 - **Pixel Reconstruction**: Recreates a target image using the color palette of a source image.
 - **High Performance**: Optimized algorithm for fast processing (O(N²/2) complexity).
-- **Professional UI**: Modern dark mode design with glassmorphism effects.
-- **Interactive Background**: 3D particle system powered by **Three.js**.
-- **Audio Feedback**: Immersive sound effects using the **Web Audio API**.
 - **Animation**: Visualize the reconstruction process in real-time.
 - **Export**: Download the result as a high-quality PNG.
 
@@ -29,9 +26,8 @@
 ## 🛠️ Tech Stack
 
 - **Core**: HTML5, CSS3, Vanilla JavaScript
-- **Graphics**: HTML5 Canvas, Three.js
-- **Audio**: Web Audio API
-- **Styling**: CSS Variables, Backdrop Filter (Glassmorphism)
+- **Graphics**: HTML5 Canvas
+- **Styling**: CSS Variables, Backdrop Filter
 
 ## 📸 Screenshots
 
